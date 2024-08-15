@@ -80,7 +80,7 @@ def save_file_details_to_db(telegram_user_id, file_url):
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/', methods=['POST'])
 def webhook():
     update = Update.de_json(request.get_json(), bot_app.bot)
     asyncio.run(bot_app.process_update(update))
