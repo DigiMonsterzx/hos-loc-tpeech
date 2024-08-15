@@ -27,21 +27,21 @@ cloudinary.config(
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
-# Initialize the bot updater and dispatcher
-updater = Update(TOKEN)
-dispatcher = updater.dispatcher
+# Initialize the Telegram bot application
+bot_app = Application.builder().token(TOKEN).build()
 
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Hi! Send me a Word document.')
+async def start(update: Update, context: CallbackContext) -> None:
+    await update.message.reply_text('Hi! Send me a Word document.')
 
-def handle_document(update: Update, context: CallbackContext) -> None:
+async def handle_document(update: Update, context: CallbackContext) -> None:
     file = update.message.document
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
-        file_info = context.bot.get_file(file_id)
+        file_info = await context.bot.get_file(file_id)
         file_path = file_info.file_path
+
         # Download the file from Telegram servers
-        file_content = requests.get(file_info.file_path).content
+        file_content = requests.get(file_path).content
 
         # Save the file locally (optional)
         with open(file.file_name, 'wb') as f:
@@ -53,10 +53,9 @@ def handle_document(update: Update, context: CallbackContext) -> None:
         # Save details to Supabase
         save_file_details_to_db(update.message.from_user.id, uploaded_url)
 
-        update.message.reply_text('File received and uploaded!')
-
+        await update.message.reply_text('File received and uploaded!')
     else:
-        update.message.reply_text('Please send a valid Word document.')
+        await update.message.reply_text('Please send a valid Word document.')
 
 def upload_to_cloudinary(file_name, file_content):
     response = cloudinary.uploader.upload(file_content, resource_type="raw", folder="Queued/")
@@ -73,13 +72,13 @@ def save_file_details_to_db(telegram_user_id, file_url):
         print(f"Error inserting data: {response.data}")
 
 # Set up command handlers
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(MessageHandler(Filters.document, handle_document))
+bot_app.add_handler(CommandHandler("start", start))
+bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(), updater.bot)
-    dispatcher.process_update(update)
+async def webhook():
+    update = Update.de_json(request.get_json(), bot_app.bot)
+    await bot_app.process_update(update)
     return 'ok'
 
 if __name__ == '__main__':
