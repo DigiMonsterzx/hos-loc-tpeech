@@ -1,13 +1,11 @@
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
 import requests
 import cloudinary
 import cloudinary.uploader
 from supabase import create_client, Client
-from flask import Flask, request
-from flask import Flask
 import asyncio
 import hypercorn.asyncio
 from hypercorn.config import Config
@@ -80,9 +78,11 @@ def save_file_details_to_db(telegram_user_id, file_url):
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-@app.route('/', methods=['POST'])
-def test():
-    return 'POST request received!'
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(), bot_app.bot)
+    asyncio.run(bot_app.process_update(update))
+    return 'ok'
 
 if __name__ == '__main__':
     config = Config()
