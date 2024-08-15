@@ -28,7 +28,7 @@ cloudinary.config(
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
 # Initialize the bot updater and dispatcher
-updater = Updater(TOKEN)
+updater = Update(TOKEN)
 dispatcher = updater.dispatcher
 
 def start(update: Update, context: CallbackContext) -> None:
