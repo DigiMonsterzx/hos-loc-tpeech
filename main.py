@@ -1,6 +1,6 @@
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 import os
 import requests
 import cloudinary
