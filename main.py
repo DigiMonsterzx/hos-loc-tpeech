@@ -81,10 +81,8 @@ bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
 @app.route('/', methods=['POST'])
-def webhook():
-    update = Update.de_json(request.get_json(), bot_app.bot)
-    asyncio.run(bot_app.process_update(update))
-    return 'ok'
+def test():
+    return 'POST request received!'
 
 if __name__ == '__main__':
     config = Config()
