@@ -33,7 +33,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 bot_app = ApplicationBuilder().token(TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text('Hi! Send me a Word document.')
+    await update.message.reply_text('Hi! Send me a Word document please.')
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     file = update.message.document
