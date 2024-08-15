@@ -4,5 +4,6 @@ python-telegram-bot
 cloudinary
 supabase
 requests
-
+fastapi
+uvicorn
 
