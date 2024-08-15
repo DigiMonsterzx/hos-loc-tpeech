@@ -69,7 +69,7 @@ def save_file_details_to_db(telegram_user_id, file_url):
         'file_url': file_url,
         'status': 'Queued',
     }
-    response = supabase.table('files').insert(data).execute()
+    response = supabase.table('DbextraData').insert(data).execute()
     if response.status_code != 201:
         print(f"Error inserting data: {response.data}")
 
