@@ -80,6 +80,7 @@ bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    print(request.get_json())  # Log incoming updates
     update = Update.de_json(request.get_json(), bot_app.bot)
     asyncio.run(bot_app.process_update(update))
     return 'ok'
