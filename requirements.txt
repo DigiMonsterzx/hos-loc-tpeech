@@ -1,9 +1,8 @@
 Flask
-gunicorn
+hypercorn
 python-telegram-bot
 cloudinary
 supabase
 requests
-uvicorn
-daphne
+
 
