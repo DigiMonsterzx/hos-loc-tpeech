@@ -85,7 +85,6 @@ def webhook():
     asyncio.run(bot_app.process_update(update))
     return 'ok'
 
-
 if __name__ == '__main__':
     config = Config()
     config.bind = ["0.0.0.0:10000"]
