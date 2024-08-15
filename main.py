@@ -82,11 +82,9 @@ bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 def webhook():
     print(request.get_json())  # Log incoming updates
     update = Update.de_json(request.get_json(), bot_app.bot)
-    # Initialize the bot application if not already done
-    if not bot_app.is_initialized:
-        asyncio.run(bot_app.initialize())  # Ensure the app is initialized
     asyncio.run(bot_app.process_update(update))
     return 'ok'
+
 
 if __name__ == '__main__':
     config = Config()
