@@ -1,7 +1,7 @@
-Flask==2.1.1
-gunicorn==20.1.0
-python-telegram-bot==13.7
-cloudinary==1.25.0
-supabase==0.3.3
-requests==2.25.1
+Flask
+gunicorn
+python-telegram-bot
+cloudinary
+supabase
+requests
 
