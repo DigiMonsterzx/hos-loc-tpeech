@@ -6,7 +6,11 @@ import requests
 import cloudinary
 import cloudinary.uploader
 from supabase import create_client, Client
+from flask import Flask, request
+from flask import Flask
 import asyncio
+import hypercorn.asyncio
+from hypercorn.config import Config
 
 app = Flask(__name__)
 
@@ -83,6 +87,6 @@ def webhook():
     return 'ok'
 
 if __name__ == '__main__':
-    # Use an ASGI server like uvicorn for deployment
-    import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    config = Config()
+    config.bind = ["0.0.0.0:10000"]
+    asyncio.run(hypercorn.asyncio.serve(app, config))
