@@ -79,15 +79,23 @@ bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
-  print(request.get_json())  # Log incoming updates
-  update = Update.de_json(request.get_json(), bot_app.bot)
-  # Call initialize before processing the update
-  asyncio.run(bot_app.initialize())
-  asyncio.run(bot_app.process_update(update))
-  return 'ok'
+async def webhook():
+    update = Update.de_json(request.get_json(), bot_app.bot)
+    await bot_app.process_update(update)
+    return 'ok'
 
-if __name__ == '__main__':
+async def run_app():
     config = Config()
     config.bind = ["0.0.0.0:10000"]
-    asyncio.run(hypercorn.asyncio.serve(app, config))
+    
+    # Initialize the bot application
+    await bot_app.initialize()
+
+    # Run the Flask app with Hypercorn concurrently
+    await asyncio.gather(
+        hypercorn.asyncio.serve(app, config),
+        bot_app.start()
+    )
+
+if __name__ == '__main__':
+    asyncio.run(run_app())
