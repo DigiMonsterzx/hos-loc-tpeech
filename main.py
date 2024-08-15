@@ -6,6 +6,7 @@ import requests
 import cloudinary
 import cloudinary.uploader
 from supabase import create_client, Client
+import asyncio
 
 app = Flask(__name__)
 
@@ -28,12 +29,12 @@ cloudinary.config(
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 
 # Initialize the Telegram bot application
-bot_app = Application.builder().token(TOKEN).build()
+bot_app = ApplicationBuilder().token(TOKEN).build()
 
-async def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text('Hi! Send me a Word document.')
 
-async def handle_document(update: Update, context: CallbackContext) -> None:
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     file = update.message.document
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
@@ -76,11 +77,12 @@ bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     update = Update.de_json(request.get_json(), bot_app.bot)
-    await bot_app.process_update(update)
+    asyncio.run(bot_app.process_update(update))
     return 'ok'
 
 if __name__ == '__main__':
-    # Start Flask app with Gunicorn
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+    # Use an ASGI server like uvicorn for deployment
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
