@@ -1,4 +1,5 @@
-from flask import Flask, request
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
@@ -7,10 +8,8 @@ import cloudinary
 import cloudinary.uploader
 from supabase import create_client, Client
 import asyncio
-import hypercorn.asyncio
-from hypercorn.config import Config
 
-app = Flask(__name__)
+app = FastAPI()
 
 # Load environment variables
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -78,24 +77,13 @@ def save_file_details_to_db(telegram_user_id, file_url):
 bot_app.add_handler(CommandHandler("start", start))
 bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-@app.route('/webhook', methods=['POST'])
-async def webhook():
-    update = Update.de_json(request.get_json(), bot_app.bot)
-    await bot_app.process_update(update)
-    return 'ok'
-
-async def run_app():
-    config = Config()
-    config.bind = ["0.0.0.0:10000"]
-    
-    # Initialize the bot application
+@app.post("/webhook")
+async def webhook(request: Request):
+    update = Update.de_json(await request.json(), bot_app.bot)
     await bot_app.initialize()
+    await bot_app.process_update(update)
+    return {"status": "ok"}
 
-    # Run the Flask app with Hypercorn concurrently
-    await asyncio.gather(
-        hypercorn.asyncio.serve(app, config),
-        bot_app.start()
-    )
-
-if __name__ == '__main__':
-    asyncio.run(run_app())
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
