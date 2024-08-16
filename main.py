@@ -106,6 +106,7 @@ async def choose_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     file = update.message.document
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+        user_id = update.message.from_user.id
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -121,13 +122,12 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         uploaded_url = upload_to_cloudinary(local_file_path)
 
         # Save details to Supabase
-        save_file_details_to_db(update.message.from_user.id, uploaded_url)
+        save_file_details_to_db(user_id, uploaded_url)
 
         await update.message.reply_text('File received and uploaded!')
-        return ConversationHandler.END
     else:
         await update.message.reply_text('Please send a valid Word document.')
-        return DOCUMENT
+    return ConversationHandler.END
 
 def upload_to_cloudinary(file_path):
     file_name = os.path.basename(file_path)
