@@ -48,7 +48,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         with open(local_file_path, 'wb') as f:
             f.write(file_content)
 
-        # Upload to Cloudinary using the local file path
+        # Upload to Cloudinary using the original file name
         uploaded_url = upload_to_cloudinary(local_file_path)
 
         # Save details to Supabase
@@ -59,7 +59,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text('Please send a valid Word document.')
 
 def upload_to_cloudinary(file_path):
-    response = cloudinary.uploader.upload(file_path, resource_type="raw", folder="Queued/")
+    file_name = os.path.basename(file_path)
+    response = cloudinary.uploader.upload(file_path, resource_type="raw", folder="Queued/", public_id=file_name)
     return response.get('secure_url')
 
 def save_file_details_to_db(telegram_user_id, file_url):
@@ -86,8 +87,6 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
 
 
 
