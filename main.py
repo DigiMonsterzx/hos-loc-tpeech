@@ -1,6 +1,9 @@
 from fastapi import FastAPI, Request
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler,
+    ContextTypes, filters
+)
 import os
 import requests
 import cloudinary
@@ -31,6 +34,9 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 # Initialize the Telegram bot application
 bot_app = ApplicationBuilder().token(TOKEN).build()
 
+# Define states
+GENDER, LANGUAGE, VOICE, DOCUMENT = range(4)
+
 # Define available voices
 voices = {
     'female': {
@@ -47,7 +53,7 @@ voices = {
 
 user_choices = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id] = {}
     
@@ -57,42 +63,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "Please follow the steps to get started."
     )
     await update.message.reply_text(welcome_text)
-    await ask_for_gender(update, context)
-
-async def ask_for_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = ReplyKeyboardMarkup([['Male', 'Female']], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text('Please choose a gender:', reply_markup=reply_markup)
+    return GENDER
 
-async def ask_for_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def choose_gender(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id]['gender'] = update.message.text.lower()
     
     reply_markup = ReplyKeyboardMarkup([['English', 'French', 'Arabic']], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text('Please choose a language:', reply_markup=reply_markup)
+    return LANGUAGE
 
-async def ask_for_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id]['language'] = update.message.text.lower()
     
     gender = user_choices[user_id]['gender']
     language = user_choices[user_id]['language']
     
-    if language == 'english':
-        language_code = 'english'
-    elif language == 'french':
-        language_code = 'french'
-    elif language == 'arabic':
-        language_code = 'arabic'
-    else:
-        await update.message.reply_text('Invalid language choice. Please start over.')
-        return
+    if language not in ['english', 'french', 'arabic']:
+        await update.message.reply_text('Invalid language choice. Please choose from English, French, or Arabic.')
+        return LANGUAGE
     
-    available_voices = [voice for lang, voice in voices[gender].items() if lang == language_code]
+    available_voices = [voice for lang, voice in voices[gender].items() if lang == language]
     
     reply_markup = ReplyKeyboardMarkup([[voice] for voice in available_voices], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text('Please choose a voice:', reply_markup=reply_markup)
+    return VOICE
 
-async def handle_voice_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def choose_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id]['voice'] = update.message.text
     
@@ -101,8 +101,9 @@ async def handle_voice_selection(update: Update, context: ContextTypes.DEFAULT_T
     save_voice_choice_to_db(user_id, voice_gender_id)
     
     await update.message.reply_text('Thank you! Now, please attach the Word document you want to convert to speech.')
+    return DOCUMENT
 
-async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     file = update.message.document
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
@@ -123,8 +124,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         save_file_details_to_db(update.message.from_user.id, uploaded_url)
 
         await update.message.reply_text('File received and uploaded!')
+        return ConversationHandler.END
     else:
         await update.message.reply_text('Please send a valid Word document.')
+        return DOCUMENT
 
 def upload_to_cloudinary(file_path):
     file_name = os.path.basename(file_path)
@@ -150,12 +153,19 @@ def save_file_details_to_db(telegram_user_id, file_url):
     if response.status_code != 201:
         print(f"Error inserting data: {response.data}")
 
-# Set up command handlers
-bot_app.add_handler(CommandHandler("start", start))
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_for_language))
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ask_for_voice))
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice_selection))
-bot_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+# Set up conversation handler with states
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler("start", start)],
+    states={
+        GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_gender)],
+        LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
+        VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_voice)],
+        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)]
+    },
+    fallbacks=[]
+)
+
+bot_app.add_handler(conv_handler)
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -167,6 +177,7 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
 
