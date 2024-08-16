@@ -142,8 +142,9 @@ def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
         'voice_gender_id': voice_gender_id
     }
     response = supabase.table('DbextraData').update(data).eq('telegram_user_id', telegram_user_id).execute()
-    if response.status_code != 200:
-        print(f"Error updating data: {response.data}")
+    # Check for success based on the presence of errors in the response
+    if response.data is None:
+        print(f"Error updating data: {response.error}")
 
 def save_file_details_to_db(telegram_user_id, file_url):
     data = {
@@ -152,8 +153,10 @@ def save_file_details_to_db(telegram_user_id, file_url):
         'status': 'Queued',
     }
     response = supabase.table('DbextraData').insert(data).execute()
-    if response.status_code != 201:
-        print(f"Error inserting data: {response.data}")
+    # Check for success based on the presence of errors in the response
+    if response.data is None:
+        print(f"Error inserting data: {response.error}")
+
 
 # Set up conversation handler with states
 conv_handler = ConversationHandler(
