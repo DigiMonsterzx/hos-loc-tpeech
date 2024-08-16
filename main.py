@@ -101,6 +101,8 @@ async def choose_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     save_voice_choice_to_db(user_id, voice_gender_id)
     
     await update.message.reply_text('Thank you! Now, please attach the Word document you want to convert to speech.')
+    
+    # Proceed to the next step
     return DOCUMENT
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -177,6 +179,7 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
 
