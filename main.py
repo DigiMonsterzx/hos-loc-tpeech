@@ -106,6 +106,7 @@ async def choose_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return DOCUMENT
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.message.from_user.id
     file = update.message.document
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
@@ -122,8 +123,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Upload to Cloudinary using the original file name
         uploaded_url = upload_to_cloudinary(local_file_path)
 
+        # Retrieve the voice_gender_id from user_choices
+        voice_gender_id = user_choices[user_id]['voice']
+        
         # Save details to Supabase
-        save_file_details_to_db(update.message.from_user.id, uploaded_url)
+        save_file_details_to_db(user_id, uploaded_url, voice_gender_id)
 
         await update.message.reply_text('File received and uploaded!')
         return ConversationHandler.END
@@ -146,17 +150,17 @@ def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
     if response.data is None:
         print(f"Error updating data: {response.error}")
 
-def save_file_details_to_db(telegram_user_id, file_url):
+def save_file_details_to_db(telegram_user_id, file_url, voice_gender_id):
     data = {
         'telegram_user_id': telegram_user_id,
         'file_url': file_url,
         'status': 'Queued',
+        'voice_gender_id': voice_gender_id
     }
     response = supabase.table('DbextraData').insert(data).execute()
     # Check for success based on the presence of errors in the response
     if response.data is None:
         print(f"Error inserting data: {response.error}")
-
 
 # Set up conversation handler with states
 conv_handler = ConversationHandler(
@@ -182,6 +186,7 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
 
