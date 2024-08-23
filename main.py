@@ -1,4 +1,3 @@
-# Import necessary modules
 from fastapi import FastAPI, Request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -38,9 +37,23 @@ bot_app = ApplicationBuilder().token(TOKEN).build()
 # Define states
 GENDER, LANGUAGE, VOICE, DOCUMENT, MP3_UPLOAD = range(5)
 
+# Define available voices
+voices = {
+    'female': {
+        'arabic': 'ar-DZ-AminaNeural',
+        'french': 'fr-FR-DeniseNeural',
+        'english': 'en-US-AriaNeural'
+    },
+    'male': {
+        'arabic': 'ar-DZ-IsmaelNeural',
+        'french': 'fr-FR-HenriNeural',
+        'english': 'en-US-ChristopherNeural'
+    }
+}
+
 user_choices = {}
 
-# Text-to-Speech Service
+# Text-to-Speech command handlers
 async def start_text_to_speech(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id] = {}
@@ -122,45 +135,51 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text('Please send a valid Word document.')
         return DOCUMENT
 
-# Clone Voice TTS Service
+# Clone Voice TTS command handlers
 async def start_clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     user_choices[user_id] = {}
     
-    await update.message.reply_text('Please attach an MP3 file or provide a URL to an MP3 file.')
+    welcome_text = (
+        "Welcome to the Clone Voice TTS Service!\n"
+        "This service allows you to clone voice from MP3 files.\n"
+        "Please follow the steps to get started."
+    )
+    await update.message.reply_text(welcome_text)
+    await update.message.reply_text('Please attach the MP3 file or provide an MP3 URL.')
     return MP3_UPLOAD
 
 async def handle_mp3_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    
-    if file.mime_type == 'audio/mpeg':
+    if file.mime_type == 'audio/mpeg' or file.mime_type == 'audio/mp3':
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
-        # Download the MP3 file from Telegram servers
+        # Download the file from Telegram servers
         file_content = requests.get(file_info.file_path).content
 
-        # Save the file locally
+        # Save the file locally with its original name (optional)
         local_file_path = file.file_name
         with open(local_file_path, 'wb') as f:
             f.write(file_content)
 
         # Upload to Cloudinary using the original file name
         uploaded_url = upload_to_cloudinary(local_file_path)
-        
-        # Store the uploaded URL for later use
-        user_choices[user_id]['mp3_url'] = uploaded_url
-        
-        await update.message.reply_text('MP3 file received! Now, please attach the Word document you want to convert to speech.')
+
+        # Save details to Supabase
+        save_mp3_details_to_db(user_id, uploaded_url)
+
+        await update.message.reply_text('MP3 file received and uploaded! Now please attach the Word document.')
         return DOCUMENT
     elif update.message.text and update.message.text.endswith('.mp3'):
-        # Handle MP3 URL provided by the user
-        user_choices[user_id]['mp3_url'] = update.message.text
-        await update.message.reply_text('MP3 URL received! Now, please attach the Word document you want to convert to speech.')
+        mp3_url = update.message.text.strip()
+        # Save MP3 URL to user_choices
+        user_choices[user_id]['mp3_url'] = mp3_url
+        await update.message.reply_text('MP3 URL received! Now please attach the Word document.')
         return DOCUMENT
     else:
-        await update.message.reply_text('Please send a valid MP3 file or provide a valid MP3 URL.')
+        await update.message.reply_text('Please send a valid MP3 file or MP3 URL.')
         return MP3_UPLOAD
 
 async def handle_document_for_clone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -181,10 +200,13 @@ async def handle_document_for_clone(update: Update, context: ContextTypes.DEFAUL
         # Upload to Cloudinary using the original file name
         uploaded_url = upload_to_cloudinary(local_file_path)
 
-        # Save details to Supabase in the new table
-        save_clone_voice_details_to_db(user_id, uploaded_url, user_choices[user_id]['mp3_url'])
+        # Retrieve the MP3 URL from user_choices
+        mp3_url = user_choices[user_id].get('mp3_url')
+        
+        # Save details to Supabase
+        save_clone_voice_details_to_db(user_id, uploaded_url, mp3_url)
 
-        await update.message.reply_text('Word document received and uploaded!')
+        await update.message.reply_text('File received and uploaded!')
         return ConversationHandler.END
     else:
         await update.message.reply_text('Please send a valid Word document.')
@@ -204,62 +226,61 @@ def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
     if response.data is None:
         print(f"Error updating data: {response.error}")
 
-def save_file_details_to_db(telegram_user_id, file_url, voice_gender_id):
+def save_file_details_to_db(user_id, file_url, voice_gender_id):
     data = {
-        'telegram_user_id': telegram_user_id,
+        'user_id': user_id,
         'file_url': file_url,
-        'status': 'Queued',
         'voice_gender_id': voice_gender_id
     }
     response = supabase.table('DbextraData').insert(data).execute()
     if response.data is None:
         print(f"Error inserting data: {response.error}")
 
-def save_clone_voice_details_to_db(telegram_user_id, file_url, mp3_url):
+def save_mp3_details_to_db(user_id, mp3_url):
     data = {
-        'telegram_user_id': telegram_user_id,
-        'file_url': file_url,
-        'mp3_attachment': mp3_url,
-        'status': 'Queued'
+        'user_id': user_id,
+        'mp3_attachement': mp3_url
     }
     response = supabase.table('DbextraData_elevenlabs').insert(data).execute()
     if response.data is None:
         print(f"Error inserting data: {response.error}")
 
-# Set up the conversation handler for Text-to-Speech
-tts_handler = ConversationHandler(
-    entry_points=[CommandHandler('TextToSpeech', start_text_to_speech)],
-    states={
-        GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
-        LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
-        VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice)],
-        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)]
-    },
-    fallbacks=[]
-)
+def save_clone_voice_details_to_db(user_id, file_url, mp3_url):
+    data = {
+        'user_id': user_id,
+        'file_url': file_url,
+        'mp3_attachement': mp3_url
+    }
+    response = supabase.table('DbextraData_elevenlabs').insert(data).execute()
+    if response.data is None:
+        print(f"Error inserting data: {response.error}")
 
-# Set up the conversation handler for Clone Voice TTS
-clone_voice_handler = ConversationHandler(
-    entry_points=[CommandHandler('cloneVoice_tts', start_clone_voice_tts)],
-    states={
-        MP3_UPLOAD: [MessageHandler(filters.Document.ALL | filters.TEXT & ~filters.COMMAND, handle_mp3_upload)],
-        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document_for_clone)]
-    },
-    fallbacks=[]
-)
+def main():
+    bot_app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler('TextTospeech', start_text_to_speech)],
+        states={
+            GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
+            LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
+            VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice)],
+            DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document)],
+        },
+        fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
+    ))
 
-# Add handlers to the bot application
-bot_app.add_handler(tts_handler)
-bot_app.add_handler(clone_voice_handler)
+    bot_app.add_handler(ConversationHandler(
+        entry_points=[CommandHandler('cloneVoice_tts', start_clone_voice_tts)],
+        states={
+            MP3_UPLOAD: [MessageHandler(filters.DOCUMENT | filters.TEXT, handle_mp3_upload)],
+            DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document_for_clone)],
+        },
+        fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
+    ))
 
-@app.post('/webhook')
-async def webhook(request: Request):
-    update = Update.de_json(await request.json(), bot_app.bot)
-    await bot_app.update_queue.put(update)
-    return {"status": "ok"}
-
-if __name__ == "__main__":
     bot_app.run_polling()
+
+if __name__ == '__main__':
+    main()
+
 
 
 
