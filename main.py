@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, Request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -188,8 +186,3 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-
-
-
