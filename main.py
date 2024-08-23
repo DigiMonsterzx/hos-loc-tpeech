@@ -228,7 +228,7 @@ def save_clone_voice_details_to_db(telegram_user_id, file_url, mp3_url):
 
 # Set up the conversation handler for Text-to-Speech
 tts_handler = ConversationHandler(
-    entry_points=[CommandHandler('TextTospeech', start_text_to_speech)],
+    entry_points=[CommandHandler('TextToSpeech', start_text_to_speech)],
     states={
         GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
         LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
