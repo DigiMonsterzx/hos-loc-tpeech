@@ -1,3 +1,4 @@
+# Import necessary modules
 from fastapi import FastAPI, Request
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -232,7 +233,7 @@ tts_handler = ConversationHandler(
         GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
         LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
         VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice)],
-        DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document)]
+        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)]
     },
     fallbacks=[]
 )
@@ -241,8 +242,8 @@ tts_handler = ConversationHandler(
 clone_voice_handler = ConversationHandler(
     entry_points=[CommandHandler('cloneVoice-tts', start_clone_voice_tts)],
     states={
-        MP3_UPLOAD: [MessageHandler(filters.DOCUMENT | filters.TEXT & ~filters.COMMAND, handle_mp3_upload)],
-        DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document_for_clone)]
+        MP3_UPLOAD: [MessageHandler(filters.Document.ALL | filters.TEXT & ~filters.COMMAND, handle_mp3_upload)],
+        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document_for_clone)]
     },
     fallbacks=[]
 )
@@ -259,6 +260,7 @@ async def webhook(request: Request):
 
 if __name__ == "__main__":
     bot_app.run_polling()
+
 
 
 
