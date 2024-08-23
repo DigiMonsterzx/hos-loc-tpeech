@@ -235,7 +235,7 @@ def save_file_details_to_db(user_id, word_url, voice_gender_id):
         'telegram_user_id': user_id,
         'word_attachment': word_url,
         'voice_gender_id': voice_gender_id,
-        'status': 'Completed'
+        'status': 'Queued'
     }
     response = supabase.table('DbextraData').insert(data).execute()
     if response.data is None:
