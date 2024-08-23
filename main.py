@@ -108,7 +108,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+    if file and file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -152,7 +152,7 @@ async def start_clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_mp3_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file.mime_type == 'audio/mpeg' or file.mime_type == 'audio/mp3':
+    if file and file.mime_type in ['audio/mpeg', 'audio/mp3']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -185,7 +185,7 @@ async def handle_mp3_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def handle_document_for_clone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+    if file and file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -262,7 +262,7 @@ def main():
             GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
             LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
             VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice)],
-            DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document)],
+            DOCUMENT: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_document)],
         },
         fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
     ))
@@ -270,8 +270,8 @@ def main():
     bot_app.add_handler(ConversationHandler(
         entry_points=[CommandHandler('cloneVoice_tts', start_clone_voice_tts)],
         states={
-            MP3_UPLOAD: [MessageHandler(filters.DOCUMENT | filters.TEXT, handle_mp3_upload)],
-            DOCUMENT: [MessageHandler(filters.DOCUMENT, handle_document_for_clone)],
+            MP3_UPLOAD: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_mp3_upload)],
+            DOCUMENT: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_document_for_clone)],
         },
         fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
     ))
@@ -280,8 +280,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
 
 
 
