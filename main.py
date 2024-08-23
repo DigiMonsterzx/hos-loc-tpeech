@@ -34,7 +34,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_API_KEY)
 bot_app = ApplicationBuilder().token(TOKEN).build()
 
 # Define states
-GENDER, LANGUAGE, VOICE, DOCUMENT, MP3_ATTACHMENT, WORD_ATTACHMENT = range(7)
+GENDER, LANGUAGE, VOICE, DOCUMENT, MP3_ATTACHMENT, WORD_ATTACHMENT = range(6)
 
 # Define available voices
 voices = {
