@@ -129,7 +129,7 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
             # Save details to Supabase
             save_file_details_to_db(user_id, uploaded_url, voice_gender_id)
-            await update.message.reply_text('File received and uploaded!')
+            await update.message.reply_text('File received and uploaded! Your data has been saved.')
         else:
             await update.message.reply_text('Failed to upload file to Cloudinary.')
         
@@ -148,32 +148,42 @@ async def clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def handle_mp3_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    
-    if file.mime_type == 'audio/mpeg':
-        file_id = file.file_id
-        file_info = await context.bot.get_file(file_id)
 
-        # Download the file from Telegram servers
-        file_content = requests.get(file_info.file_path).content
+    if file:
+        if file.mime_type == 'audio/mpeg':
+            file_id = file.file_id
+            file_info = await context.bot.get_file(file_id)
 
-        # Save the file locally with its original name
-        local_file_path = file.file_name
-        with open(local_file_path, 'wb') as f:
-            f.write(file_content)
+            # Download the file from Telegram servers
+            file_content = requests.get(file_info.file_path).content
 
-        # Upload to Cloudinary specifying the resource type
-        mp3_url = upload_to_cloudinary(local_file_path, resource_type='audio')
-        
-        if mp3_url:
-            user_choices[user_id]['mp3_url'] = mp3_url
-            await update.message.reply_text('MP3 file received and uploaded! Now, please attach the Word document.')
-            return WORD_ATTACHMENT
+            # Save the file locally with its original name
+            local_file_path = file.file_name
+            with open(local_file_path, 'wb') as f:
+                f.write(file_content)
+
+            # Upload to Cloudinary specifying the resource type
+            mp3_url = upload_to_cloudinary(local_file_path, resource_type='audio')
+
+            if mp3_url:
+                user_choices[user_id]['mp3_url'] = mp3_url
+                await update.message.reply_text('MP3 file received and uploaded! Now, please attach the Word document.')
+                return WORD_ATTACHMENT
+            else:
+                await update.message.reply_text('Failed to upload MP3 file to Cloudinary.')
+                return MP3_ATTACHMENT
         else:
-            await update.message.reply_text('Failed to upload MP3 file to Cloudinary.')
+            await update.message.reply_text('Please send a valid MP3 file.')
             return MP3_ATTACHMENT
     else:
-        await update.message.reply_text('Please send a valid MP3 file.')
-        return MP3_ATTACHMENT
+        mp3_url = update.message.text
+        if mp3_url.endswith('.mp3'):
+            user_choices[user_id]['mp3_url'] = mp3_url
+            await update.message.reply_text('MP3 URL received! Now, please attach the Word document.')
+            return WORD_ATTACHMENT
+        else:
+            await update.message.reply_text('Please provide a valid MP3 URL.')
+            return MP3_ATTACHMENT
 
 async def handle_word_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
@@ -198,7 +208,7 @@ async def handle_word_attachment(update: Update, context: ContextTypes.DEFAULT_T
             # Save details to Supabase
             mp3_url = user_choices[user_id].get('mp3_url')
             save_file_details_to_db_elevenlabs(user_id, word_url, mp3_url)
-            await update.message.reply_text('Word document received and uploaded!')
+            await update.message.reply_text('Word document received and uploaded! Your data has been saved.')
         else:
             await update.message.reply_text('Failed to upload Word document to Cloudinary.')
         
@@ -213,26 +223,17 @@ def upload_to_cloudinary(file_path, resource_type='raw'):
             file_path,
             resource_type=resource_type
         )
-        return upload_response.get('secure_url')
-    except cloudinary.exceptions.Error as e:
-        print(f"Cloudinary upload error: {e}")
+        return upload_response['secure_url']
+    except Exception as e:
+        print(f"Error uploading file to Cloudinary: {e}")
         return None
 
-def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
-    data = {
-        'telegram_user_id': telegram_user_id,
-        'voice_gender_id': voice_gender_id
-    }
-    response = supabase.table('DbextraData').update(data).eq('telegram_user_id', telegram_user_id).execute()
-    if response.data is None:
-        print(f"Error updating data: {response.error}")
-
-def save_file_details_to_db(user_id, file_url, voice_gender_id):
+def save_file_details_to_db(user_id, word_url, voice_gender_id):
     data = {
         'telegram_user_id': user_id,
-        'file_url': file_url,
-        'status': 'Queued',
-        'voice_gender_id': voice_gender_id
+        'word_attachment': word_url,
+        'voice_gender_id': voice_gender_id,
+        'status': 'Completed'
     }
     response = supabase.table('DbextraData').insert(data).execute()
     if response.data is None:
@@ -279,6 +280,7 @@ async def webhook(request: Request):
     await bot_app.initialize()
     await bot_app.process_update(update)
     return {"status": "ok"}
+
 
 
 if __name__ == "__main__":
