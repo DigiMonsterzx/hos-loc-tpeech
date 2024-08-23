@@ -209,6 +209,8 @@ async def handle_word_attachment(update: Update, context: ContextTypes.DEFAULT_T
             mp3_url = user_choices[user_id].get('mp3_url')
             save_file_details_to_db_elevenlabs(user_id, word_url, mp3_url)
             await update.message.reply_text('Word document received and uploaded! Your data has been saved.')
+            # Clear user choices
+            del user_choices[user_id]
         else:
             await update.message.reply_text('Failed to upload Word document to Cloudinary.')
         
@@ -265,7 +267,7 @@ conv_handler = ConversationHandler(
 clone_voice_handler = ConversationHandler(
     entry_points=[CommandHandler('clonevoice_tts', clone_voice_tts)],
     states={
-        MP3_ATTACHMENT: [MessageHandler(filters.Document.ALL, handle_mp3_attachment)],
+        MP3_ATTACHMENT: [MessageHandler(filters.Document.ALL | filters.TEXT, handle_mp3_attachment)],
         WORD_ATTACHMENT: [MessageHandler(filters.Document.ALL, handle_word_attachment)],
     },
     fallbacks=[]
@@ -280,8 +282,6 @@ async def webhook(request: Request):
     await bot_app.initialize()
     await bot_app.process_update(update)
     return {"status": "ok"}
-
-
 
 if __name__ == "__main__":
     import uvicorn
