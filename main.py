@@ -102,12 +102,12 @@ async def choose_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     
     await update.message.reply_text('Thank you! Now, please attach the Word document you want to convert to speech.')
     
-    # Proceed to the next step
     return DOCUMENT
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
+    
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
@@ -115,21 +115,24 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Download the file from Telegram servers
         file_content = requests.get(file_info.file_path).content
 
-        # Save the file locally with its original name (optional)
+        # Save the file locally with its original name
         local_file_path = file.file_name
         with open(local_file_path, 'wb') as f:
             f.write(file_content)
 
-        # Upload to Cloudinary using the original file name
+        # Upload to Cloudinary specifying the resource type
         uploaded_url = upload_to_cloudinary(local_file_path)
-
-        # Retrieve the voice_gender_id from user_choices
-        voice_gender_id = user_choices[user_id]['voice']
         
-        # Save details to Supabase
-        save_file_details_to_db(user_id, uploaded_url, voice_gender_id)
-
-        await update.message.reply_text('File received and uploaded!')
+        if uploaded_url:
+            # Retrieve the voice_gender_id from user_choices
+            voice_gender_id = user_choices[user_id]['voice']
+            
+            # Save details to Supabase
+            save_file_details_to_db(user_id, uploaded_url, voice_gender_id)
+            await update.message.reply_text('File received and uploaded!')
+        else:
+            await update.message.reply_text('Failed to upload file to Cloudinary.')
+        
         return ConversationHandler.END
     else:
         await update.message.reply_text('Please send a valid Word document.')
@@ -139,13 +142,13 @@ async def clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = update.message.from_user.id
     user_choices[user_id] = {}
     
-    await update.message.reply_text("Welcome to the Clone Voice TTS Service!\n"
-                                   "Please attach an MP3 file or provide an MP3 URL.")
+    await update.message.reply_text('Please attach the MP3 file or provide the MP3 URL.')
     return MP3_ATTACHMENT
 
 async def handle_mp3_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
+    
     if file.mime_type == 'audio/mpeg':
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
@@ -153,19 +156,21 @@ async def handle_mp3_attachment(update: Update, context: ContextTypes.DEFAULT_TY
         # Download the file from Telegram servers
         file_content = requests.get(file_info.file_path).content
 
-        # Save the file locally with its original name (optional)
+        # Save the file locally with its original name
         local_file_path = file.file_name
         with open(local_file_path, 'wb') as f:
             f.write(file_content)
 
-        # Upload to Cloudinary using the original file name
-        mp3_url = upload_to_cloudinary(local_file_path)
+        # Upload to Cloudinary specifying the resource type
+        mp3_url = upload_to_cloudinary(local_file_path, resource_type='audio')
         
-        # Store the MP3 URL for later
-        user_choices[user_id]['mp3_url'] = mp3_url
-
-        await update.message.reply_text('MP3 file received and uploaded! Now, please attach the Word document.')
-        return WORD_ATTACHMENT
+        if mp3_url:
+            user_choices[user_id]['mp3_url'] = mp3_url
+            await update.message.reply_text('MP3 file received and uploaded! Now, please attach the Word document.')
+            return WORD_ATTACHMENT
+        else:
+            await update.message.reply_text('Failed to upload MP3 file to Cloudinary.')
+            return MP3_ATTACHMENT
     else:
         await update.message.reply_text('Please send a valid MP3 file.')
         return MP3_ATTACHMENT
@@ -173,6 +178,7 @@ async def handle_mp3_attachment(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_word_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
+    
     if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
@@ -180,29 +186,37 @@ async def handle_word_attachment(update: Update, context: ContextTypes.DEFAULT_T
         # Download the file from Telegram servers
         file_content = requests.get(file_info.file_path).content
 
-        # Save the file locally with its original name (optional)
+        # Save the file locally with its original name
         local_file_path = file.file_name
         with open(local_file_path, 'wb') as f:
             f.write(file_content)
 
-        # Upload to Cloudinary using the original file name
-        word_url = upload_to_cloudinary(local_file_path)
+        # Upload to Cloudinary specifying the resource type
+        word_url = upload_to_cloudinary(local_file_path, resource_type='raw')
         
-        # Retrieve the MP3 URL from user_choices
-        mp3_url = user_choices[user_id]['mp3_url']
+        if word_url:
+            # Save details to Supabase
+            mp3_url = user_choices[user_id].get('mp3_url')
+            save_file_details_to_db_elevenlabs(user_id, word_url, mp3_url)
+            await update.message.reply_text('Word document received and uploaded!')
+        else:
+            await update.message.reply_text('Failed to upload Word document to Cloudinary.')
         
-        # Save details to Supabase
-        save_file_details_to_db_elevenlabs(user_id, word_url, mp3_url)
-
-        await update.message.reply_text('Word document received and uploaded!')
         return ConversationHandler.END
     else:
         await update.message.reply_text('Please send a valid Word document.')
         return WORD_ATTACHMENT
 
-def upload_to_cloudinary(file_path):
-    upload_response = cloudinary.uploader.upload(file_path)
-    return upload_response.get('url')
+def upload_to_cloudinary(file_path, resource_type='raw'):
+    try:
+        upload_response = cloudinary.uploader.upload(
+            file_path,
+            resource_type=resource_type
+        )
+        return upload_response.get('secure_url')
+    except cloudinary.exceptions.Error as e:
+        print(f"Cloudinary upload error: {e}")
+        return None
 
 def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
     data = {
@@ -213,48 +227,51 @@ def save_voice_choice_to_db(telegram_user_id, voice_gender_id):
     if response.data is None:
         print(f"Error updating data: {response.error}")
 
-def save_file_details_to_db(telegram_user_id, file_url, voice_gender_id):
+def save_file_details_to_db(user_id, file_url, voice_gender_id):
     data = {
-        'telegram_user_id': telegram_user_id,
+        'telegram_user_id': user_id,
         'file_url': file_url,
+        'status': 'Queued',
         'voice_gender_id': voice_gender_id
     }
     response = supabase.table('DbextraData').insert(data).execute()
     if response.data is None:
         print(f"Error inserting data: {response.error}")
 
-def save_file_details_to_db_elevenlabs(telegram_user_id, file_url, mp3_url):
+def save_file_details_to_db_elevenlabs(user_id, word_url, mp3_url):
     data = {
-        'telegram_user_id': telegram_user_id,
-        'file_url': file_url,
-        'mp3_attachement': mp3_url
+        'telegram_user_id': user_id,
+        'word_attachment': word_url,
+        'mp3_attachement': mp3_url,
+        'status': 'Completed'
     }
     response = supabase.table('DbextraData_elevenlabs').insert(data).execute()
     if response.data is None:
         print(f"Error inserting data: {response.error}")
 
-text_to_speech_handler = ConversationHandler(
+# Handlers
+conv_handler = ConversationHandler(
     entry_points=[CommandHandler('texttospeech', text_to_speech)],
     states={
-        GENDER: [MessageHandler(filters.Regex('|'.join(['Male', 'Female'])), choose_gender)],
-        LANGUAGE: [MessageHandler(filters.Regex('|'.join(['English', 'French', 'Arabic'])), choose_language)],
-        VOICE: [MessageHandler(filters.Regex('|'.join(list(voices['male'].values()) + list(voices['female'].values()))), choose_voice)],
-        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)]
+        GENDER: [MessageHandler(filters.Regex('^(Male|Female)$'), choose_gender)],
+        LANGUAGE: [MessageHandler(filters.Regex('^(English|French|Arabic)$'), choose_language)],
+        VOICE: [MessageHandler(filters.Regex('|'.join(voice for voice in voices['male'].values()) + '|' + '|'.join(voice for voice in voices['female'].values())), choose_voice)],
+        DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)],
     },
     fallbacks=[]
 )
 
-clone_voice_tts_handler = ConversationHandler(
+clone_voice_handler = ConversationHandler(
     entry_points=[CommandHandler('clonevoice_tts', clone_voice_tts)],
     states={
-        MP3_ATTACHMENT: [MessageHandler(filters.Document.AUDIO, handle_mp3_attachment)],
-        WORD_ATTACHMENT: [MessageHandler(filters.Document.ALL, handle_word_attachment)]
+        MP3_ATTACHMENT: [MessageHandler(filters.Document.ALL, handle_mp3_attachment)],
+        WORD_ATTACHMENT: [MessageHandler(filters.Document.ALL, handle_word_attachment)],
     },
     fallbacks=[]
 )
 
-bot_app.add_handler(text_to_speech_handler)
-bot_app.add_handler(clone_voice_tts_handler)
+bot_app.add_handler(conv_handler)
+bot_app.add_handler(clone_voice_handler)
 
 @app.post("/webhook")
 async def webhook(request: Request):
@@ -262,6 +279,7 @@ async def webhook(request: Request):
     await bot_app.initialize()
     await bot_app.process_update(update)
     return {"status": "ok"}
+
 
 if __name__ == "__main__":
     import uvicorn
