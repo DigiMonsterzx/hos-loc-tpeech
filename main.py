@@ -135,6 +135,14 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text('Please send a valid Word document.')
         return DOCUMENT
 
+async def clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.message.from_user.id
+    user_choices[user_id] = {}
+    
+    await update.message.reply_text("Welcome to the Clone Voice TTS Service!\n"
+                                   "Please attach an MP3 file or provide an MP3 URL.")
+    return MP3_ATTACHMENT
+
 async def handle_mp3_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
@@ -228,11 +236,9 @@ def save_file_details_to_db_elevenlabs(telegram_user_id, file_url, mp3_url):
 text_to_speech_handler = ConversationHandler(
     entry_points=[CommandHandler('texttospeech', text_to_speech)],
     states={
-        GENDER: [MessageHandler(filters.Regex('^(Male|Female)$'), choose_gender)],
-        LANGUAGE: [MessageHandler(filters.Regex('^(English|French|Arabic)$'), choose_language)],
-        VOICE: [MessageHandler(filters.Regex('|'.join(
-            list(voices['male'].values()) + list(voices['female'].values())
-        )), choose_voice)],
+        GENDER: [MessageHandler(filters.Regex('|'.join(['Male', 'Female'])), choose_gender)],
+        LANGUAGE: [MessageHandler(filters.Regex('|'.join(['English', 'French', 'Arabic'])), choose_language)],
+        VOICE: [MessageHandler(filters.Regex('|'.join(list(voices['male'].values()) + list(voices['female'].values()))), choose_voice)],
         DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)]
     },
     fallbacks=[]
@@ -260,6 +266,7 @@ async def webhook(request: Request):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
 
