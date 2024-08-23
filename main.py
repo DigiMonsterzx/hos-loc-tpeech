@@ -265,7 +265,7 @@ async def webhook(request: Request):
 
 def main():
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('TextTospeech', start_text_to_speech)],
+        entry_points=[CommandHandler('texttospeech', start_text_to_speech)],
         states={
             GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
             LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
@@ -278,7 +278,7 @@ def main():
     bot_app.add_handler(conv_handler)
 
     conv_handler_clone = ConversationHandler(
-        entry_points=[CommandHandler('cloneVoice-tts', start_clone_voice_tts)],
+        entry_points=[CommandHandler('clonevoice_tts', start_clone_voice_tts)],
         states={
             MP3_UPLOAD: [MessageHandler(filters.Document.ALL | filters.TEXT, handle_mp3_upload)],
             DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document_for_clone)],
