@@ -10,6 +10,7 @@ import cloudinary
 import cloudinary.uploader
 from supabase import create_client, Client
 import asyncio
+import uvicorn
 
 app = FastAPI()
 
@@ -108,7 +109,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file and file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+    if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -152,7 +153,7 @@ async def start_clone_voice_tts(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_mp3_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file and file.mime_type in ['audio/mpeg', 'audio/mp3']:
+    if file.mime_type == 'audio/mpeg' or file.mime_type == 'audio/mp3':
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -185,7 +186,7 @@ async def handle_mp3_upload(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def handle_document_for_clone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.message.from_user.id
     file = update.message.document
-    if file and file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+    if file.mime_type in ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
         file_id = file.file_id
         file_info = await context.bot.get_file(file_id)
 
@@ -255,31 +256,48 @@ def save_clone_voice_details_to_db(user_id, file_url, mp3_url):
     if response.data is None:
         print(f"Error inserting data: {response.error}")
 
+@app.post("/webhook")
+async def webhook(request: Request):
+    update = Update.de_json(await request.json(), bot_app.bot)
+    await bot_app.initialize()
+    await bot_app.process_update(update)
+    return {"status": "ok"}
+
 def main():
-    bot_app.add_handler(ConversationHandler(
+    conv_handler = ConversationHandler(
         entry_points=[CommandHandler('TextTospeech', start_text_to_speech)],
         states={
             GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_gender)],
             LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_language)],
             VOICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_voice)],
-            DOCUMENT: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_document)],
+            DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document)],
         },
         fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
-    ))
+    )
 
-    bot_app.add_handler(ConversationHandler(
-        entry_points=[CommandHandler('cloneVoice_tts', start_clone_voice_tts)],
+    bot_app.add_handler(conv_handler)
+
+    conv_handler_clone = ConversationHandler(
+        entry_points=[CommandHandler('cloneVoice-tts', start_clone_voice_tts)],
         states={
-            MP3_UPLOAD: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_mp3_upload)],
-            DOCUMENT: [MessageHandler(filters.ALL & ~filters.COMMAND, handle_document_for_clone)],
+            MP3_UPLOAD: [MessageHandler(filters.Document.ALL | filters.TEXT, handle_mp3_upload)],
+            DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document_for_clone)],
         },
         fallbacks=[CommandHandler('cancel', lambda update, context: update.message.reply_text('Operation canceled'))]
-    ))
+    )
 
-    bot_app.run_polling()
+    bot_app.add_handler(conv_handler_clone)
 
-if __name__ == '__main__':
-    main()
+    bot_app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv('PORT', 80)),
+        webhook_url=os.getenv('WEBHOOK_URL')
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 
 
