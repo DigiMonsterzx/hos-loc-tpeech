@@ -240,7 +240,7 @@ tts_handler = ConversationHandler(
 
 # Set up the conversation handler for Clone Voice TTS
 clone_voice_handler = ConversationHandler(
-    entry_points=[CommandHandler('cloneVoice-tts', start_clone_voice_tts)],
+    entry_points=[CommandHandler('cloneVoice_tts', start_clone_voice_tts)],
     states={
         MP3_UPLOAD: [MessageHandler(filters.Document.ALL | filters.TEXT & ~filters.COMMAND, handle_mp3_upload)],
         DOCUMENT: [MessageHandler(filters.Document.ALL, handle_document_for_clone)]
